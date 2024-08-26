@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -19,8 +21,24 @@ func main() {
 	cert := x509.NewCertPool()
 	cert.AppendCertsFromPEM(caCert)
 
+	tlsDialer := &tls.Dialer{
+		Config: &tls.Config{RootCAs: cert},
+		NetDialer: &net.Dialer{
+			KeepAliveConfig: net.KeepAliveConfig{
+				Enable:   true,
+				Idle:     -1,
+				Interval: -1,
+			},
+		},
+	}
+
 	client := &http.Client{
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: cert}},
+		Transport: &http.Transport{
+			// TLSClientConfig: &tls.Config{RootCAs: cert},
+			DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return tlsDialer.DialContext(ctx, network, addr)
+			},
+		},
 	}
 
 	internal, err := time.ParseDuration(os.Getenv("HTTP_PROBE_INTERVAL"))
